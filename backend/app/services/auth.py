@@ -10,6 +10,11 @@ class EmailAlreadyRegisteredError(Exception):
     pass
 
 
+async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
+    normalized_email = email.strip().lower()
+    return await db.scalar(select(User).where(User.email == normalized_email))
+
+
 async def register_user(
     db: AsyncSession,
     email: str,

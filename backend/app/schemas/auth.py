@@ -13,3 +13,8 @@ class RegisterRequest(BaseModel):
         if not stripped:
             raise ValueError("Имя не может быть пустым")
         return stripped
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr = Field(max_length=254)
+    password: str = Field(min_length=1, max_length=128)
