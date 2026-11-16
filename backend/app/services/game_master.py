@@ -107,6 +107,13 @@ def _format_roll(roll: dict[str, Any] | None) -> str:
     )
 
 
+def _system_prompt(content: str) -> str:
+    suffix = settings.llm_system_suffix.strip()
+    if not suffix:
+        return content
+    return f"{content}\n\n{suffix}"
+
+
 def _chat_messages(
     history: list[CampaignMessage],
     *,
@@ -120,7 +127,7 @@ def _chat_messages(
         f"Результат проверки:\n{_format_roll(roll)}\n\n"
         f"Фрагменты SRD:\n{_format_sources(chunks)}"
     )
-    messages = [ChatMessage(role="system", content=system)]
+    messages = [ChatMessage(role="system", content=_system_prompt(system))]
     for message in history[-settings.recent_message_limit :]:
         if message.role in {"user", "assistant"}:
             messages.append(
@@ -166,11 +173,11 @@ async def _summarize(
     )
     raw = await chat.complete(
         [
-            ChatMessage(role="system", content=SUMMARY_PROMPT),
+            ChatMessage(role="system", content=_system_prompt(SUMMARY_PROMPT)),
             ChatMessage(role="user", content=prompt),
         ],
         temperature=0.2,
-        max_tokens=500,
+        max_tokens=1500,
     )
     parsed = _extract_json(raw)
     return CampaignSummary.model_validate(parsed).model_dump()
@@ -342,12 +349,18 @@ async def run_turn(
         campaign.id,
         limit=settings.recent_message_limit,
     )
-    chunks = await retrieve_srd_chunks(
-        db,
-        embeddings,
-        user_message.content,
-        limit=settings.retrieval_top_k,
-    )
+    chunks: list[SrdChunk] = []
+    try:
+        chunks = await retrieve_srd_chunks(
+            db,
+            embeddings,
+            user_message.content,
+            limit=settings.retrieval_top_k,
+        )
+    except ProviderError as exc:
+        logger.warning(
+            "Поиск по SRD недоступен, отвечаю без источников: %s", exc
+        )
     sources = _sources_payload(chunks)
     prompt = _chat_messages(
         history,

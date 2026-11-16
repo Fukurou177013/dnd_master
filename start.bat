@@ -73,7 +73,7 @@ if not exist "%ROOT%\frontend\node_modules" (
 echo [4/5] Запуск backend на http://localhost:8000
 call :is_running "%BACKEND_PID_FILE%"
 if defined RUNNING goto :backend_started
-for /f "usebackq delims=" %%p in (`powershell -NoProfile -Command "(Start-Process -FilePath 'cmd.exe' -ArgumentList '/k','title DnD Master: backend && uv run uvicorn app.main:app --reload --port 8000' -WorkingDirectory '%ROOT%\backend' -PassThru).Id"`) do set "BACKEND_PID=%%p"
+for /f "usebackq delims=" %%p in (`powershell -NoProfile -Command "(Start-Process -FilePath 'cmd.exe' -ArgumentList '/k','title DnD Master: backend && uv run uvicorn app.main:app --reload --port 8000 --loop app.core.loop:selector_loop_factory' -WorkingDirectory '%ROOT%\backend' -PassThru).Id"`) do set "BACKEND_PID=%%p"
 if defined BACKEND_PID >"%BACKEND_PID_FILE%" echo %BACKEND_PID%
 :backend_started
 

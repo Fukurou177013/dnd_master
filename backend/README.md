@@ -70,6 +70,32 @@ LLM_EMBEDDING_DIMENSIONS=1536
 
 Важно: размерность embeddings в настройках должна совпадать с колонкой `srd_chunks.embedding` (`vector(1536)`) — иначе приложение не запустится, проверка выполняется при старте. Если меняете модель на другую размерность, обновите `EMBEDDING_DIMENSIONS` в `app/core/config.py`, создайте миграцию и заново импортируйте корпус.
 
+### Локальный режим без облачного LLM (Ollama)
+
+Если ключа облачного провайдера нет, чат можно запустить на локальной модели:
+
+```powershell
+ollama pull qwen3:14b
+```
+
+В `backend/.env`:
+
+```dotenv
+LLM_BASE_URL=http://localhost:11434/v1
+LLM_API_KEY=ollama
+LLM_CHAT_MODEL=qwen3:14b
+LLM_TIMEOUT_SECONDS=120
+LLM_SYSTEM_SUFFIX=/no_think
+```
+
+`LLM_SYSTEM_SUFFIX` добавляется в конец системного промпта и отключает режим рассуждений Qwen3: ответ приходит примерно за 20 секунд вместо 70 и не упирается в `LLM_MAX_OUTPUT_TOKENS`. Для облачных моделей оставляйте параметр пустым.
+
+Особенности локального режима:
+
+- Векторный поиск по SRD требует embedding-модель на 1536 измерений (`text-embedding-3-small`), которой нет в Ollama. Backend пишет предупреждение в лог и отвечает без источников. Чтобы вернуть RAG, нужна embedding-модель и миграция под её размерность.
+- На Windows backend запускается с `--loop app.core.loop:selector_loop_factory`: psycopg не работает с ProactorEventLoop, который uvicorn использует по умолчанию.
+- Если включён квантованный KV-кэш (`OLLAMA_KV_CACHE_TYPE=q8_0`), Ollama нужно запускать с `OLLAMA_FLASH_ATTENTION=1`. Для RTX 3060 12 ГБ модель qwen3:14b целиком помещается в VRAM при `OLLAMA_CONTEXT_LENGTH=16384`.
+
 ## Шаг 3. Применить миграции
 
 ```powershell
@@ -102,7 +128,7 @@ uv run python -m app.scripts.import_srd data/srd/srd-5.2.1.md `
 ## Шаг 5. Запустить backend
 
 ```powershell
-uv run uvicorn app.main:app --reload --port 8000
+uv run uvicorn app.main:app --reload --port 8000 --loop app.core.loop:selector_loop_factory
 ```
 
 Проверка:

@@ -10,3 +10,5 @@ node_modules/
 dist/
 *.tsbuildinfo
 ARCHITECTURE_GUIDE.md
+AGENTS.md
+OPENCODE_GO_POLICY.md

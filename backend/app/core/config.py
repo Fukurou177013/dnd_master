@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = 30.0
     llm_max_output_tokens: int = 700
     llm_temperature: float = 0.7
+    llm_system_suffix: str = ""
 
     retrieval_top_k: int = 4
     recent_message_limit: int = 12
