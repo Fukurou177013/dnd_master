@@ -96,7 +96,7 @@ async def login(
         value=token,
         httponly=True,
         secure=settings.cookie_secure,
-        samesite="lax",
+        samesite=settings.session_cookie_samesite,
         max_age=settings.session_ttl_days * 24 * 60 * 60,
         path="/",
     )
