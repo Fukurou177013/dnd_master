@@ -1,6 +1,14 @@
 .venv/
+.run/
 .env
 __pycache__/
+*.pyc
 .pytest_cache/
 .ruff_cache/
 .kilo/
+node_modules/
+dist/
+*.tsbuildinfo
+AGENTS.md
+OPENCODE_GO_POLICY.md
+kilo.json

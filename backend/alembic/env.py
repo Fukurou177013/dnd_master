@@ -9,7 +9,15 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from alembic import context
 from app.core.config import settings
 from app.db.base import Base
-from app.models import User, UserSession  # noqa: F401
+from app.models import (  # noqa: F401
+    Campaign,
+    CampaignMemory,
+    CampaignMessage,
+    Character,
+    SrdChunk,
+    User,
+    UserSession,
+)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
