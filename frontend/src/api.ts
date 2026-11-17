@@ -54,17 +54,21 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     credentials: "include",
   });
 
-  const isJson = response.headers
-    .get("content-type")
-    ?.includes("application/json");
-  const payload = isJson ? await response.json() : null;
-
   if (!response.ok) {
+    const isJson = response.headers
+      .get("content-type")
+      ?.includes("application/json");
+    const payload = isJson ? await response.json() : null;
     throw new ApiError(formatError(payload), response.status);
   }
   if (response.status === 204) {
     return undefined as T;
   }
+
+  const isJson = response.headers
+    .get("content-type")
+    ?.includes("application/json");
+  const payload = isJson ? await response.json() : null;
   return payload as T;
 }
 
