@@ -1,6 +1,5 @@
 ﻿import asyncio
 import os
-import sys
 
 import psycopg
 import pytest
@@ -26,8 +25,14 @@ from app.services.llm import get_chat_provider, get_embedding_provider
 from app.services.rate_limit import reset_rate_limits
 from tests.fakes import FakeChatProvider, FakeEmbeddingProvider, FixedRollGenerator
 
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+def pytest_asyncio_loop_factories(
+    config: pytest.Config,
+    item: pytest.Item,
+) -> dict[str, type[asyncio.AbstractEventLoop]]:
+    del config, item
+    return {"selector": asyncio.SelectorEventLoop}
+
 
 TEST_DB_NAME = os.environ.get("TEST_DB_NAME", "dnd_test")
 TEST_DATABASE_URL = os.environ.get(
@@ -37,6 +42,10 @@ TEST_DATABASE_URL = os.environ.get(
 TEST_ADMIN_URL = os.environ.get(
     "TEST_ADMIN_URL",
     "postgresql://dnd:dnd@localhost:5433/postgres",
+)
+TEST_SYNC_DATABASE_URL = os.environ.get(
+    "TEST_SYNC_DATABASE_URL",
+    f"postgresql://dnd:dnd@localhost:5433/{TEST_DB_NAME}",
 )
 
 engine = create_async_engine(TEST_DATABASE_URL, pool_pre_ping=True)
@@ -70,10 +79,10 @@ def pytest_sessionstart(session) -> None:
 
 
 @pytest.fixture(autouse=True)
-async def clean_database():
+def clean_database():
     reset_rate_limits()
-    async with engine.begin() as connection:
-        await connection.execute(text("TRUNCATE TABLE users, srd_chunks CASCADE"))
+    with psycopg.connect(TEST_SYNC_DATABASE_URL, autocommit=True) as connection:
+        connection.execute("TRUNCATE TABLE users, srd_chunks CASCADE")
     yield
 
 
