@@ -1,23 +1,18 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-import httpx
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1.router import router as api_router
 from app.core.config import settings
-from app.services.llm import set_http_client
+from app.services.llm import create_http_client, set_http_client
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    client = httpx.AsyncClient(
-        base_url=settings.llm_base_url.rstrip("/"),
-        timeout=settings.llm_timeout_seconds,
-        headers={"Authorization": f"Bearer {settings.llm_api_key}"},
-    )
+    client = create_http_client()
     set_http_client(client)
     try:
         yield

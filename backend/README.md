@@ -1,3 +1,7 @@
+> Для человека: пошаговая инструкция локального запуска и настройки.
+> Правила для coding-агента и команды проверок — `../AGENTS.md`,
+> краткая архитектура — `../docs/ARCHITECTURE.md`.
+
 # D&D Master: вертикальный срез
 
 Минимальный браузерный сценарий: регистрация → персонаж → личная кампания → чат с мастером по SRD 5.2.1. Мастер отвечает по-русски, сервер сам считает проверки и броски d20, а история и структурированное резюме сохраняются между запросами.
@@ -59,42 +63,44 @@ SESSION_TTL_DAYS=30
 SESSION_COOKIE_SAMESITE=lax
 CORS_ORIGINS=
 
-LLM_BASE_URL=https://api.openai.com/v1
-LLM_API_KEY=ваш-ключ
-LLM_CHAT_MODEL=gpt-4o-mini
-LLM_EMBEDDING_MODEL=text-embedding-3-small
-LLM_EMBEDDING_DIMENSIONS=1536
-```
-
-`.env` уже в `.gitignore`. Не коммитьте ключи. Клиент фронтенда ключ не видит: все вызовы провайдера идут с backend.
-
-Важно: размерность embeddings в настройках должна совпадать с колонкой `srd_chunks.embedding` (`vector(1536)`) — иначе приложение не запустится, проверка выполняется при старте. Если меняете модель на другую размерность, обновите `EMBEDDING_DIMENSIONS` в `app/core/config.py`, создайте миграцию и заново импортируйте корпус.
-
-### Локальный режим без облачного LLM (Ollama)
-
-Если ключа облачного провайдера нет, чат можно запустить на локальной модели:
-
-```powershell
-ollama pull qwen3:14b
-```
-
-В `backend/.env`:
-
-```dotenv
 LLM_BASE_URL=http://localhost:11434/v1
 LLM_API_KEY=ollama
 LLM_CHAT_MODEL=qwen3:14b
+LLM_EMBEDDING_MODEL=qwen3-embedding-cpu
+LLM_EMBEDDING_DIMENSIONS=1024
 LLM_TIMEOUT_SECONDS=120
 LLM_SYSTEM_SUFFIX=/no_think
 ```
 
-`LLM_SYSTEM_SUFFIX` добавляется в конец системного промпта и отключает режим рассуждений Qwen3: ответ приходит примерно за 20 секунд вместо 70 и не упирается в `LLM_MAX_OUTPUT_TOKENS`. Для облачных моделей оставляйте параметр пустым.
+`.env` уже в `.gitignore`. Не коммитьте ключи. Клиент фронтенда ключ не видит: все вызовы провайдера идут с backend.
+
+Важно: размерность embeddings в настройках должна совпадать с колонкой `srd_chunks.embedding` (`vector(1024)`) — иначе приложение не запустится, проверка выполняется при старте. Если меняете модель на другую размерность, обновите `EMBEDDING_DIMENSIONS` в `app/core/config.py`, создайте миграцию и заново импортируйте корпус.
+
+### Локальный режим без облачного LLM (Ollama)
+
+Проект по умолчанию рассчитан на локальные модели:
+
+```powershell
+ollama pull qwen3:14b
+ollama pull qwen3-embedding:0.6b
+
+# Эмбеддинги на CPU: на 12 ГБ VRAM они не помещаются рядом с qwen3:14b
+@"
+FROM qwen3-embedding:0.6b
+PARAMETER num_gpu 0
+"@ | Set-Content Modelfile.embedding
+ollama create qwen3-embedding-cpu -f Modelfile.embedding
+```
+
+- `qwen3:14b` отвечает в чате. `LLM_SYSTEM_SUFFIX=/no_think` отключает режим рассуждений Qwen3: ответ приходит примерно за 20 секунд вместо 70 и не упирается в `LLM_MAX_OUTPUT_TOKENS`. Для облачных моделей оставляйте суффикс пустым.
+- `qwen3-embedding:0.6b` — многоязычная embedding-модель на 1024 измерения: русский запрос находит английские разделы SRD. Вариант с `PARAMETER num_gpu 0` даёт те же векторы, но не занимает VRAM, поэтому модели не выгружают друг друга и ход остаётся быстрым.
+
+Чтобы перейти на облачного провайдера, укажите его `LLM_BASE_URL`, `LLM_API_KEY` и модель, затем поменяйте `EMBEDDING_DIMENSIONS` в `app/core/config.py` (например, 1536 для `text-embedding-3-small`), создайте миграцию под новую размерность и импортируйте корпус заново.
 
 Особенности локального режима:
 
-- Векторный поиск по SRD требует embedding-модель на 1536 измерений (`text-embedding-3-small`), которой нет в Ollama. Backend пишет предупреждение в лог и отвечает без источников. Чтобы вернуть RAG, нужна embedding-модель и миграция под её размерность.
 - На Windows backend запускается с `--loop app.core.loop:selector_loop_factory`: psycopg не работает с ProactorEventLoop, который uvicorn использует по умолчанию.
-- Если включён квантованный KV-кэш (`OLLAMA_KV_CACHE_TYPE=q8_0`), Ollama нужно запускать с `OLLAMA_FLASH_ATTENTION=1`. Для RTX 3060 12 ГБ модель qwen3:14b целиком помещается в VRAM при `OLLAMA_CONTEXT_LENGTH=16384`.
+- Если включён квантованный KV-кэш (`OLLAMA_KV_CACHE_TYPE=q8_0`), Ollama нужно запускать с `OLLAMA_FLASH_ATTENTION=1`. Для RTX 3060 12 ГБ модель qwen3:14b целиком помещается в VRAM при `OLLAMA_CONTEXT_LENGTH=12288`.
 
 ## Шаг 3. Применить миграции
 
@@ -103,11 +109,11 @@ uv run alembic upgrade head
 uv run alembic current
 ```
 
-Ожидаемая голова: `fa3cc73579d3`. Команда создаёт таблицы `campaigns`, `campaign_memories`, `campaign_messages`, `srd_chunks` и расширение `vector`.
+Ожидаемая голова: `5d9b1e4a7c20`. Команда создаёт таблицы `campaigns`, `campaign_memories`, `campaign_messages`, `srd_chunks` и расширение `vector`.
 
 ## Шаг 4. Импортировать SRD-корпус
 
-Корпус в репозиторий не входит. Возьмите официальный английский SRD 5.2.1, убедитесь в праве на использование и сохраните файл локально, например `backend/data/srd/srd-5.2.1.md`. Не коммитьте файл, если лицензия или размер этого не позволяют.
+Корпус в репозиторий не входит. SRD 5.2.1 распространяется по CC BY 4.0: скачайте официальный PDF с `https://www.dndbeyond.com/srd` или готовую Markdown-конвертацию и сохраните файл локально, например `backend/data/srd/srd-5.2.1.md`.
 
 Поддерживаются:
 
@@ -241,7 +247,7 @@ npm run build
 | `LLM_API_KEY` | Секретный ключ, только backend |
 | `LLM_CHAT_MODEL` | Модель чата |
 | `LLM_EMBEDDING_MODEL` | Модель embeddings |
-| `LLM_EMBEDDING_DIMENSIONS` | Размерность вектора. Должна равняться `EMBEDDING_DIMENSIONS` (1536) из `app/core/config.py`, иначе приложение не запустится |
+| `LLM_EMBEDDING_DIMENSIONS` | Размерность вектора. Должна равняться `EMBEDDING_DIMENSIONS` (1024) из `app/core/config.py`, иначе приложение не запустится |
 | `LLM_TIMEOUT_SECONDS` | Тайм-аут запросов к провайдеру |
 | `LLM_MAX_OUTPUT_TOKENS` | Ограничение длины ответа |
 | `RETRIEVAL_TOP_K` | Сколько фрагментов SRD передавать в prompt |

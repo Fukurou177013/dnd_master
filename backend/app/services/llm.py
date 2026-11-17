@@ -10,6 +10,14 @@ from app.core.config import settings
 _http_client: httpx.AsyncClient | None = None
 
 
+def create_http_client() -> httpx.AsyncClient:
+    return httpx.AsyncClient(
+        base_url=settings.llm_base_url.rstrip("/"),
+        timeout=settings.llm_timeout_seconds,
+        headers={"Authorization": f"Bearer {settings.llm_api_key}"},
+    )
+
+
 def set_http_client(client: httpx.AsyncClient | None) -> None:
     global _http_client
     _http_client = client

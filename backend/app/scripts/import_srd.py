@@ -15,7 +15,11 @@ from sqlalchemy import select
 
 from app.db.session import SessionLocal
 from app.models import SrdChunk
-from app.services.llm import get_embedding_provider
+from app.services.llm import (
+    create_http_client,
+    get_embedding_provider,
+    set_http_client,
+)
 
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 MAX_CHUNK_CHARS = 1600
@@ -182,6 +186,10 @@ def _batches(items: list[ParsedChunk], size: int) -> Iterable[list[ParsedChunk]]
         yield items[start : start + size]
 
 
+def _embedding_text(chunk: ParsedChunk) -> str:
+    return f"{chunk.section}\n{chunk.title}\n\n{chunk.content}"
+
+
 async def import_corpus(
     chunks: list[ParsedChunk],
     *,
@@ -206,7 +214,9 @@ async def import_corpus(
         skipped = len(chunks) - len(pending)
 
         for batch in _batches(pending, batch_size):
-            vectors = await embeddings.embed([chunk.content for chunk in batch])
+            vectors = await embeddings.embed(
+                [_embedding_text(chunk) for chunk in batch]
+            )
             for chunk, vector in zip(batch, vectors, strict=True):
                 db.add(
                     SrdChunk(
@@ -258,7 +268,13 @@ async def _main() -> None:
     if not chunks:
         raise SystemExit("В корпусе не найдено текстовых фрагментов")
     print(f"Найдено фрагментов: {len(chunks)}")
-    created, skipped = await import_corpus(chunks, batch_size=args.batch_size)
+    client = create_http_client()
+    set_http_client(client)
+    try:
+        created, skipped = await import_corpus(chunks, batch_size=args.batch_size)
+    finally:
+        set_http_client(None)
+        await client.aclose()
     print(f"Готово. Создано: {created}, уже существовало: {skipped}")
 
 

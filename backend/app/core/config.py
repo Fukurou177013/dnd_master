@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 
-EMBEDDING_DIMENSIONS = 1536
+EMBEDDING_DIMENSIONS = 1024
 
 
 class Settings(BaseSettings):

@@ -2,6 +2,7 @@ from uuid import UUID
 
 from httpx import ASGITransport, AsyncClient
 
+from app.core.config import EMBEDDING_DIMENSIONS
 from app.main import app
 from app.models import SrdChunk
 from app.services.campaigns import get_campaign, list_messages
@@ -74,7 +75,7 @@ async def setup_campaign(client: AsyncClient) -> tuple[str, str]:
 
 
 async def add_srd_chunk(db_session) -> SrdChunk:
-    vector = [0.0] * 1536
+    vector = [0.0] * EMBEDDING_DIMENSIONS
     vector[0] = 1.0
     chunk = SrdChunk(
         chunk_key="test-chunk-1",
