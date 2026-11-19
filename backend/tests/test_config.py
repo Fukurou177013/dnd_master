@@ -57,3 +57,48 @@ def test_embedding_dimensions_must_match_schema() -> None:
 
     settings = build_settings(llm_embedding_dimensions=EMBEDDING_DIMENSIONS)
     assert settings.llm_embedding_dimensions == EMBEDDING_DIMENSIONS
+
+
+def test_default_llm_url_is_local_ollama() -> None:
+    settings = build_settings()
+    assert settings.llm_base_url == "http://localhost:11434/v1"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://opencode.ai/zen/go",
+        "https://opencode.ai/zen/go/v1",
+        "https://opencode.ai/inference/go",
+        "https://opencode.ai/inference/go/v1",
+    ],
+)
+def test_opencode_go_endpoint_is_rejected(url: str) -> None:
+    with pytest.raises(ValidationError) as excinfo:
+        build_settings(llm_base_url=url)
+    assert "OpenCode Go" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://opencode.ai./zen/go/v1",
+        "https://opencode.ai/zen/%67o/v1",
+        "https://opencode.ai/inference/%67o/v1",
+    ],
+)
+def test_opencode_go_guard_normalizes_host_and_path(url: str) -> None:
+    with pytest.raises(ValidationError, match="OpenCode Go"):
+        build_settings(llm_base_url=url)
+
+
+def test_opencode_pay_as_you_go_endpoint_is_allowed() -> None:
+    settings = build_settings(
+        llm_base_url="https://opencode.ai/inference/openai/v1"
+    )
+    assert settings.llm_base_url.endswith("/openai/v1")
+
+
+def test_local_ollama_endpoint_is_allowed() -> None:
+    settings = build_settings(llm_base_url="http://localhost:11434/v1")
+    assert settings.llm_base_url == "http://localhost:11434/v1"

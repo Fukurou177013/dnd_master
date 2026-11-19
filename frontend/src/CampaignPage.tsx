@@ -26,6 +26,7 @@ export function CampaignPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [name, setName] = useState("");
+  const [premise, setPremise] = useState("");
   const [characterId, setCharacterId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -72,9 +73,11 @@ export function CampaignPage() {
       const created = await api.createCampaign({
         name: name.trim(),
         character_id: characterId,
+        premise: premise.trim() || null,
       });
       setCampaigns((previous) => [created, ...previous]);
       setName("");
+      setPremise("");
       navigate(`/campaigns/${created.id}`);
     } catch (submitError) {
       setFormError(errorMessage(submitError));
@@ -156,6 +159,17 @@ export function CampaignPage() {
                 </select>
               </label>
 
+              <label className="field">
+                <span>Пожелание к кампании (необязательно)</span>
+                <textarea
+                  value={premise}
+                  onChange={(event) => setPremise(event.target.value)}
+                  maxLength={500}
+                  rows={3}
+                  placeholder="Жанр, тон или сеттинг: например, мрачное городское фэнтези"
+                />
+              </label>
+
               {formError && <p className="alert error">{formError}</p>}
 
               <button
@@ -195,6 +209,9 @@ export function CampaignPage() {
                         Фактов в памяти: {campaign.summary.facts.length}, целей:{" "}
                         {campaign.summary.goals.length}
                       </p>
+                      {campaign.premise && (
+                        <p className="muted small">{campaign.premise}</p>
+                      )}
                     </div>
                     <div className="button-row">
                       <Link

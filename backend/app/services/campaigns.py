@@ -42,6 +42,8 @@ async def create_campaign(
     db: AsyncSession,
     user_id: uuid.UUID,
     payload: CampaignCreate,
+    *,
+    intro: str,
 ) -> Campaign:
     character_id = await db.scalar(
         select(Character.id).where(
@@ -56,10 +58,29 @@ async def create_campaign(
         user_id=user_id,
         character_id=character_id,
         name=payload.name,
+        premise=payload.premise,
         memory=CampaignMemory(summary=copy.deepcopy(EMPTY_SUMMARY)),
     )
-    db.add(campaign)
-    await db.commit()
+    try:
+        db.add(campaign)
+        await db.flush()
+        db.add(
+            CampaignMessage(
+                campaign_id=campaign.id,
+                role="assistant",
+                content=intro,
+                sequence=1,
+                message_metadata={
+                    "intro": True,
+                    "roll": None,
+                    "sources": [],
+                },
+            )
+        )
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
     await db.refresh(campaign)
     return campaign
 

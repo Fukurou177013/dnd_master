@@ -104,8 +104,11 @@ export const api = {
 
   campaign: (id: string) => request<Campaign>(`/campaigns/${id}`),
 
-  createCampaign: (body: { name: string; character_id: string }) =>
-    request<Campaign>("/campaigns", postJson(body)),
+  createCampaign: (body: {
+    name: string;
+    character_id: string;
+    premise: string | null;
+  }) => request<Campaign>("/campaigns", postJson(body)),
 
   deleteCampaign: (id: string) =>
     request<void>(`/campaigns/${id}`, { method: "DELETE" }),

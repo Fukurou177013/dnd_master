@@ -98,6 +98,7 @@ export interface Campaign {
   id: string;
   name: string;
   character_id: string;
+  premise: string | null;
   summary: CampaignSummary;
   created_at: string;
   updated_at: string;
@@ -141,16 +142,9 @@ export interface CampaignExchange {
   memory_update_scheduled: boolean;
 }
 
-export interface CheckRequest {
-  ability: AbilityKey;
-  skill: string | null;
-  dc: number;
-}
-
 export interface MessageRequest {
   content: string;
   client_message_id: string;
-  check: CheckRequest | null;
 }
 
 export interface CharacterCreatePayload {

@@ -25,8 +25,9 @@ from app.services.campaigns import (
     list_messages,
 )
 from app.services.characters import get_character
+from app.services.content_policy import check_content
 from app.services.dice import RollGenerator, get_roll_generator
-from app.services.game_master import run_turn
+from app.services.game_master import generate_intro_scene, run_turn
 from app.services.llm import (
     ChatProvider,
     EmbeddingProvider,
@@ -63,13 +64,57 @@ async def create_my_campaign(
     payload: CampaignCreate,
     current_user: CurrentUser,
     db: DbSession,
+    chat: Chat,
 ) -> object:
+    if not allow_request(current_user.id, settings.chat_rate_limit_per_minute):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Слишком много запросов, попробуйте позже",
+        )
+
+    character = await get_character(db, current_user.id, payload.character_id)
+    if character is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Персонаж не найден",
+        )
+    await db.commit()
+
+    if payload.premise and not check_content(payload.premise).allowed:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                "Пожелание кампании нарушает правила контента. "
+                "Измените пожелание и попробуйте снова."
+            ),
+        )
+
     try:
-        return await create_campaign(db, current_user.id, payload)
+        intro = await generate_intro_scene(
+            character=character,
+            premise=payload.premise,
+            chat=chat,
+        )
+        return await create_campaign(
+            db,
+            current_user.id,
+            payload,
+            intro=intro,
+        )
     except CharacterNotOwnedError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Персонаж не найден",
+        ) from exc
+    except ProviderTimeoutError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Мастер не ответил вовремя. Кампания не создана, повторите запрос.",
+        ) from exc
+    except ProviderUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Мастер временно недоступен. Кампания не создана, повторите запрос.",
         ) from exc
 
 

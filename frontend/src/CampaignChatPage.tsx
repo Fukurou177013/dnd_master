@@ -10,12 +10,10 @@ import { Link, useParams } from "react-router-dom";
 
 import { api, ApiError } from "./api";
 import type {
-  AbilityKey,
   Campaign,
   CampaignMessage,
   Character,
   CharacterOptions,
-  CheckRequest,
   MessageRequest,
   Roll,
 } from "./types";
@@ -51,10 +49,6 @@ export function CampaignChatPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [content, setContent] = useState("");
-  const [checkEnabled, setCheckEnabled] = useState(false);
-  const [ability, setAbility] = useState<AbilityKey>("wisdom");
-  const [skill, setSkill] = useState("");
-  const [dc, setDc] = useState(15);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [lastAttempt, setLastAttempt] = useState<MessageRequest | null>(null);
@@ -96,17 +90,7 @@ export function CampaignChatPage() {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length]);
 
-  const skillOptions =
-    options?.skills.filter((item) => item.ability === ability) ?? [];
   const maxMessageLength = options?.limits.max_message_length;
-
-  function handleAbilityChange(nextAbility: AbilityKey) {
-    setAbility(nextAbility);
-    const currentSkill = options?.skills.find((item) => item.name === skill);
-    if (currentSkill && currentSkill.ability !== nextAbility) {
-      setSkill("");
-    }
-  }
 
   async function send(request: MessageRequest) {
     setSending(true);
@@ -150,13 +134,9 @@ export function CampaignChatPage() {
     if (!text || sending) {
       return;
     }
-    const check: CheckRequest | null = checkEnabled
-      ? { ability, skill: skill || null, dc }
-      : null;
     await send({
       content: text,
       client_message_id: crypto.randomUUID(),
-      check,
     });
   }
 
@@ -208,8 +188,8 @@ export function CampaignChatPage() {
               <div className="empty chat-empty">
                 <p>Мастер ждёт вашего действия.</p>
                 <p className="muted small">
-                  Опишите, что делает персонаж. Для проверки включите её ниже:
-                  сервер сам бросит d20 и применит модификатор.
+                  Опишите, что делает персонаж. Если нужна проверка, мастер
+                  бросит d20 на сервере и применит модификатор.
                 </p>
               </div>
             )}
@@ -261,61 +241,9 @@ export function CampaignChatPage() {
             />
 
             <div className="composer-controls">
-              <label className="check inline">
-                <input
-                  type="checkbox"
-                  checked={checkEnabled}
-                  onChange={(event) => setCheckEnabled(event.target.checked)}
-                  disabled={sending}
-                />
-                <span>Проверка</span>
-              </label>
-
-              {checkEnabled && (
-                <div className="check-controls">
-                  <select
-                    value={ability}
-                    onChange={(event) =>
-                      handleAbilityChange(event.target.value as AbilityKey)
-                    }
-                    disabled={sending}
-                    aria-label="Характеристика"
-                  >
-                    {options?.abilities.map((item) => (
-                      <option key={item.key} value={item.key}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={skill}
-                    onChange={(event) => setSkill(event.target.value)}
-                    disabled={sending}
-                    aria-label="Навык"
-                  >
-                    <option value="">Без навыка</option>
-                    {skillOptions.map((item) => (
-                      <option key={item.name} value={item.name}>
-                        {item.name}
-                      </option>
-                    ))}
-                  </select>
-
-                  <label className="dc-field">
-                    <span>DC</span>
-                    <input
-                      type="number"
-                      min={5}
-                      max={30}
-                      value={dc}
-                      onChange={(event) => setDc(Number(event.target.value))}
-                      disabled={sending}
-                    />
-                  </label>
-                </div>
-              )}
-
+              <span className="muted small">
+                Проверки мастер назначает сам по намерению персонажа.
+              </span>
               <button
                 className="button primary"
                 type="submit"
@@ -359,6 +287,12 @@ export function CampaignChatPage() {
             title="Незавершённые события"
             values={campaign.summary.open_threads}
           />
+          {campaign.premise && (
+            <section className="memory-section">
+              <h4>Пожелание к кампании</h4>
+              <p className="small">{campaign.premise}</p>
+            </section>
+          )}
         </aside>
       </div>
     </div>

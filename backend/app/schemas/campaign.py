@@ -1,24 +1,18 @@
 import uuid
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.config import settings
 
-Ability = Literal[
-    "strength",
-    "dexterity",
-    "constitution",
-    "intelligence",
-    "wisdom",
-    "charisma",
-]
+PREMISE_MAX_LENGTH = 500
 
 
 class CampaignCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     character_id: uuid.UUID
+    premise: str | None = Field(default=None, max_length=PREMISE_MAX_LENGTH)
 
     @field_validator("name")
     @classmethod
@@ -27,6 +21,14 @@ class CampaignCreate(BaseModel):
         if not stripped:
             raise ValueError("Название не может быть пустым")
         return stripped
+
+    @field_validator("premise")
+    @classmethod
+    def strip_premise(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
 
 
 class CampaignSummary(BaseModel):
@@ -41,17 +43,12 @@ class CampaignPublic(BaseModel):
     id: uuid.UUID
     name: str
     character_id: uuid.UUID
+    premise: str | None
     summary: dict[str, Any]
     created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
-
-
-class CheckRequest(BaseModel):
-    ability: Ability
-    skill: str | None = Field(default=None, min_length=1, max_length=50)
-    dc: int = Field(default=15, ge=5, le=30)
 
 
 class CampaignMessageCreate(BaseModel):
@@ -62,7 +59,6 @@ class CampaignMessageCreate(BaseModel):
         max_length=64,
         pattern=r"^[A-Za-z0-9_-]+$",
     )
-    check: CheckRequest | None = None
 
     @field_validator("content")
     @classmethod
