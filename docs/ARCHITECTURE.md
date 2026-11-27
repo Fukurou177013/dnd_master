@@ -181,6 +181,10 @@ assistant-сообщение создаются одной транзакцие�
 | `LLM_TEMPERATURE` | 0.7 | температура ответа |
 | `LLM_EMBEDDING_DIMENSIONS` | 1024 | обязана совпадать со схемой `srd_chunks` |
 
+Для вступительной сцены и обычного ответа мастера минимальный лимит генерации — 1200
+токенов, даже если `LLM_MAX_OUTPUT_TOKENS` настроен ниже; резюме использует собственный
+лимит.
+
 При старте `config.py` отклоняет: `SameSite=None` без `Secure`, wildcard в CORS,
 размерность embeddings, отличную от 1024, и `LLM_BASE_URL` на OpenCode Go
 (`/zen/go` или `/inference/go`). Pay-as-you-go endpoint OpenCode не блокируется, но

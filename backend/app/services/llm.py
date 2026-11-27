@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -8,6 +9,7 @@ import httpx
 from app.core.config import settings
 
 _http_client: httpx.AsyncClient | None = None
+logger = logging.getLogger(__name__)
 
 
 def create_http_client() -> httpx.AsyncClient:
@@ -97,7 +99,9 @@ class OpenAIChatProvider:
             )
 
         try:
-            content = response.json()["choices"][0]["message"]["content"]
+            payload_data = response.json()
+            choice = payload_data["choices"][0]
+            content = choice["message"]["content"]
         except (KeyError, IndexError, TypeError, ValueError) as exc:
             raise ProviderUnavailableError(
                 "LLM-провайдер вернул неожиданный ответ"
@@ -105,6 +109,26 @@ class OpenAIChatProvider:
 
         if not isinstance(content, str) or not content.strip():
             raise ProviderUnavailableError("LLM-провайдер вернул пустой ответ")
+
+        finish_reason = choice.get("finish_reason")
+        usage = payload_data.get("usage")
+        completion_tokens = (
+            usage.get("completion_tokens") if isinstance(usage, dict) else None
+        )
+        logger.info(
+            "LLM completion metadata: finish_reason=%s completion_tokens=%s "
+            "content_chars=%d",
+            finish_reason,
+            completion_tokens,
+            len(content),
+        )
+        if finish_reason == "length":
+            logger.warning(
+                "LLM completion reached token limit: completion_tokens=%s "
+                "content_chars=%d",
+                completion_tokens,
+                len(content),
+            )
         return content.strip()
 
 

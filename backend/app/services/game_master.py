@@ -40,6 +40,8 @@ logger = logging.getLogger(__name__)
 
 CAMPAIGN_LOCK_SEED = 20261116
 INTRO_MIN_LENGTH = 80
+INTRO_MAX_OUTPUT_TOKENS = 1200
+TURN_MAX_OUTPUT_TOKENS = 1200
 
 CONTENT_POLICY_PROMPT = """Допустимы мрачное взрослое фэнтези, уместная грубая лексика,
 повествовательное насилие и конфликты между вымышленными группами.
@@ -245,7 +247,7 @@ async def generate_intro_scene(
             ),
         ],
         temperature=settings.llm_temperature,
-        max_tokens=settings.llm_max_output_tokens,
+        max_tokens=max(settings.llm_max_output_tokens, INTRO_MAX_OUTPUT_TOKENS),
     )
     scene = raw.strip()
     if len(scene) < INTRO_MIN_LENGTH:
@@ -529,7 +531,7 @@ async def run_turn(
     answer = await chat.complete(
         prompt,
         temperature=settings.llm_temperature,
-        max_tokens=settings.llm_max_output_tokens,
+        max_tokens=max(settings.llm_max_output_tokens, TURN_MAX_OUTPUT_TOKENS),
     )
     if not check_content(answer).allowed:
         logger.warning("Ответ мастера отклонён политикой контента")

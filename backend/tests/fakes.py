@@ -23,6 +23,7 @@ DEFAULT_INTRO = (
 class FakeChatProvider:
     def __init__(self) -> None:
         self.calls: list[list[ChatMessage]] = []
+        self.max_tokens: list[int] = []
         self.fail_next: Exception | None = None
         self.fail_next_summary: Exception | None = None
         self.answer = "Мастер описывает исход. Источник: [1]."
@@ -62,8 +63,9 @@ class FakeChatProvider:
         temperature: float,
         max_tokens: int,
     ) -> str:
-        del temperature, max_tokens
+        del temperature
         self.calls.append(list(messages))
+        self.max_tokens.append(max_tokens)
         system = messages[0].content
         is_summary = SUMMARY_SYSTEM_MARKER in system
         is_intro = INTRO_SYSTEM_MARKER in system

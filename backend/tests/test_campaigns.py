@@ -8,7 +8,12 @@ from app.main import app
 from app.models import SrdChunk
 from app.services.campaigns import get_campaign, list_messages
 from app.services.content_policy import SAFE_REDIRECT
-from app.services.game_master import CONTENT_POLICY_PROMPT, _ensure_assistant_message
+from app.services.game_master import (
+    CONTENT_POLICY_PROMPT,
+    INTRO_MAX_OUTPUT_TOKENS,
+    TURN_MAX_OUTPUT_TOKENS,
+    _ensure_assistant_message,
+)
 from app.services.llm import ProviderTimeoutError, ProviderUnavailableError
 from tests.fakes import FakeChatProvider, FixedRollGenerator
 
@@ -147,6 +152,26 @@ async def test_create_and_list_campaign(
 
     response = await client.get(f"/api/v1/campaigns/{campaign_id}")
     assert response.status_code == 404
+
+
+async def test_intro_generation_has_minimum_token_budget(
+    client: AsyncClient,
+    fake_chat: FakeChatProvider,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "llm_max_output_tokens", 700)
+    await register_and_login(client, "intro-budget@example.com")
+    character_id = await create_character(client)
+
+    response = await client.post(
+        "/api/v1/campaigns",
+        json=campaign_payload(character_id),
+    )
+
+    assert response.status_code == 201, response.text
+    assert fake_chat.max_tokens[-1] == INTRO_MAX_OUTPUT_TOKENS
 
 
 async def test_create_campaign_saves_premise(
@@ -447,6 +472,28 @@ async def test_chat_returns_server_roll_sources_and_memory(
     summary = response.json()["summary"]
     assert summary["facts"] == ["Герой вошёл в подземелье"]
     assert summary["open_threads"] == ["Дверь заперта"]
+
+
+async def test_turn_generation_has_minimum_token_budget(
+    client: AsyncClient,
+    fake_chat: FakeChatProvider,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "llm_max_output_tokens", 700)
+    _, campaign_id = await setup_campaign(client)
+
+    response = await client.post(
+        f"/api/v1/campaigns/{campaign_id}/messages",
+        json={"content": "Я осматриваюсь.", "client_message_id": "turn-budget"},
+    )
+
+    assert response.status_code == 200, response.text
+    answer_call = fake_chat.answer_calls[-1]
+    assert fake_chat.max_tokens[fake_chat.calls.index(answer_call)] == (
+        TURN_MAX_OUTPUT_TOKENS
+    )
 
 
 async def test_chat_is_idempotent_by_client_message_id(
