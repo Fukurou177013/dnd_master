@@ -1,8 +1,10 @@
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+AbilityScoreMethod = Literal["manual", "standard_array", "point_buy", "roll_4d6"]
 
 REQUIRED_UPDATE_FIELDS = {
     "name",
@@ -21,6 +23,8 @@ REQUIRED_UPDATE_FIELDS = {
     "armor_class",
     "speed",
     "data",
+    "ability_score_method",
+    "background_ability_bonus",
 }
 
 
@@ -45,6 +49,8 @@ class CharacterBase(BaseModel):
 
 
 class CharacterCreate(CharacterBase):
+    ability_score_method: AbilityScoreMethod
+    background_ability_bonus: dict[str, int]
     max_hp: int | None = Field(default=None, ge=0)
     current_hp: int | None = Field(default=None, ge=0)
     armor_class: int | None = Field(default=None, ge=0)
@@ -57,6 +63,8 @@ class CharacterUpdate(BaseModel):
     species: str | None = Field(default=None, min_length=1, max_length=50)
     character_class: str | None = Field(default=None, min_length=1, max_length=50)
     background: str | None = Field(default=None, min_length=1, max_length=50)
+    ability_score_method: AbilityScoreMethod | None = None
+    background_ability_bonus: dict[str, int] | None = None
     strength: int | None = Field(default=None, ge=1, le=30)
     dexterity: int | None = Field(default=None, ge=1, le=30)
     constitution: int | None = Field(default=None, ge=1, le=30)
@@ -84,3 +92,8 @@ class CharacterPublic(CharacterBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AbilityScoreRoll(BaseModel):
+    method: AbilityScoreMethod
+    scores: dict[str, int]

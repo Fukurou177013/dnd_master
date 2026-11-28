@@ -389,6 +389,57 @@ summary:focus-visible {
   gap: 0.7rem;
 }
 
+.ability-sliders {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.score-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 0.85rem;
+}
+
+.score-cell {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.score-cell > span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.score-cell > strong {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.slider-field input[type="range"] {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.point-buy-left {
+  transition: color 0.15s ease;
+}
+
+.point-buy-left.flash {
+  color: var(--danger);
+  font-weight: 700;
+}
+
 .compact-field {
   font-size: 0.78rem;
 }
@@ -439,6 +490,13 @@ summary:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.card,
+.message,
+.alert {
+  overflow-wrap: anywhere;
 }
 
 .sheet-header {
@@ -448,9 +506,34 @@ summary:focus-visible {
   align-items: flex-start;
 }
 
+.sheet-header > div:first-child,
+.campaign-card > div {
+  min-width: 0;
+}
+
+.sheet-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.hp-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.hp-controls .button {
+  flex: 1;
+  min-width: 0;
+  min-height: 1.7rem;
+  padding: 0.05rem 0.3rem;
+  font-size: 1rem;
+}
+
 .stat-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(6.2rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
   gap: 0.55rem;
 }
 
@@ -768,12 +851,17 @@ summary:focus-visible {
 
   .form-grid,
   .ability-inputs,
+  .ability-sliders,
   .skill-grid {
     grid-template-columns: 1fr;
   }
 
   .ability-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .score-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .campaign-card {

@@ -1,4 +1,5 @@
 import type {
+  AbilityScoreRoll,
   Campaign,
   CampaignExchange,
   CampaignMessage,
@@ -6,6 +7,7 @@ import type {
   Character,
   CharacterCreatePayload,
   CharacterOptions,
+  CharacterUpdatePayload,
   MessageRequest,
   User,
 } from "./types";
@@ -76,6 +78,10 @@ function postJson(body: unknown): RequestInit {
   return { method: "POST", body: JSON.stringify(body) };
 }
 
+function patchJson(body: unknown): RequestInit {
+  return { method: "PATCH", body: JSON.stringify(body) };
+}
+
 export const api = {
   register: (body: {
     email: string;
@@ -92,10 +98,16 @@ export const api = {
 
   characterOptions: () => request<CharacterOptions>("/rules/character-options"),
 
+  rollAbilityScores: () =>
+    request<AbilityScoreRoll>("/rules/ability-scores/roll", { method: "POST" }),
+
   characters: () => request<Character[]>("/characters"),
 
   createCharacter: (body: CharacterCreatePayload) =>
     request<Character>("/characters", postJson(body)),
+
+  updateCharacter: (id: string, body: CharacterUpdatePayload) =>
+    request<Character>(`/characters/${id}`, patchJson(body)),
 
   deleteCharacter: (id: string) =>
     request<void>(`/characters/${id}`, { method: "DELETE" }),

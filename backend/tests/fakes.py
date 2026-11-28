@@ -92,10 +92,14 @@ class FakeEmbeddingProvider:
 
 
 class FixedRollGenerator:
-    def __init__(self, d20: int = 20) -> None:
+    def __init__(self, d20: int = 20, d6: int = 4) -> None:
         self.d20 = d20
+        self.d6 = d6
         self.calls = 0
 
     def roll_d20(self) -> int:
         self.calls += 1
         return self.d20
+
+    def roll_d6(self) -> int:
+        return self.d6

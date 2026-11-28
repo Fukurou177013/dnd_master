@@ -5,7 +5,11 @@ from typing import Any
 
 from app.models import Character
 from app.rules.character_options import (
+    ABILITIES,
     ABILITY_LABELS,
+    ROLL_STAT_DICE_COUNT,
+    ROLL_STAT_DICE_DROP_LOWEST,
+    ROLL_STAT_DICE_SIDES,
     SKILL_ABILITIES,
     CharacterRulesError,
     ability_modifier,
@@ -17,12 +21,31 @@ class RollGenerator:
     def roll_d20(self) -> int:
         return secrets.randbelow(20) + 1
 
+    def roll_d6(self) -> int:
+        return secrets.randbelow(6) + 1
+
 
 _default_generator = RollGenerator()
 
 
 def get_roll_generator() -> RollGenerator:
     return _default_generator
+
+
+def roll_ability_scores(generator: RollGenerator) -> dict[str, int]:
+    scores: dict[str, int] = {}
+    for ability in ABILITIES:
+        rolls = []
+        for _ in range(ROLL_STAT_DICE_COUNT):
+            value = generator.roll_d6()
+            if not 1 <= value <= ROLL_STAT_DICE_SIDES:
+                raise CharacterRulesError(
+                    "Генератор броска вернул недопустимое значение"
+                )
+            rolls.append(value)
+        rolls.sort(reverse=True)
+        scores[ability] = sum(rolls[: ROLL_STAT_DICE_COUNT - ROLL_STAT_DICE_DROP_LOWEST])
+    return scores
 
 
 def _canonical_ability(value: str) -> str:

@@ -27,6 +27,8 @@ def character_payload() -> dict:
         "species": "Elf",
         "character_class": "Wizard",
         "background": "Sage",
+        "ability_score_method": "manual",
+        "background_ability_bonus": {"constitution": 2, "intelligence": 1},
         "strength": 8,
         "dexterity": 14,
         "constitution": 12,

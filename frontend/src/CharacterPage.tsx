@@ -1,23 +1,14 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { api, ApiError } from "./api";
+import { CharacterForm, draftFromCharacter, emptyDraft } from "./CharacterForm";
 import type {
   AbilityKey,
   Character,
   CharacterCreatePayload,
   CharacterOptions,
+  CharacterUpdatePayload,
 } from "./types";
-
-type Stats = Record<AbilityKey, number>;
-
-const DEFAULT_STATS: Stats = {
-  strength: 8,
-  dexterity: 14,
-  constitution: 12,
-  intelligence: 16,
-  wisdom: 10,
-  charisma: 10,
-};
 
 function signed(value: number): string {
   return value >= 0 ? `+${value}` : `${value}`;
@@ -29,21 +20,28 @@ function errorMessage(error: unknown): string {
     : "Не удалось выполнить запрос";
 }
 
+const ABILITIES: AbilityKey[] = [
+  "strength",
+  "dexterity",
+  "constitution",
+  "intelligence",
+  "wisdom",
+  "charisma",
+];
+
 export function CharacterPage() {
   const [options, setOptions] = useState<CharacterOptions | null>(null);
   const [characters, setCharacters] = useState<Character[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [name, setName] = useState("");
-  const [species, setSpecies] = useState("Elf");
-  const [characterClass, setCharacterClass] = useState("Wizard");
-  const [background, setBackground] = useState("Sage");
-  const [stats, setStats] = useState<Stats>(DEFAULT_STATS);
-  const [notes, setNotes] = useState("");
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createKey, setCreateKey] = useState(0);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -66,115 +64,58 @@ export function CharacterPage() {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    if (!options) {
-      return;
-    }
-    const currentBackground =
-      options.backgrounds.find((item) => item.name === background) ??
-      options.backgrounds[0];
-    if (currentBackground) {
-      setSelectedSkills(currentBackground.skills);
-    }
-  }, [options, background]);
-
-  const classOption = options?.classes.find(
-    (item) => item.name === characterClass,
-  );
-  const backgroundOption = options?.backgrounds.find(
-    (item) => item.name === background,
-  );
-  const backgroundSkills = new Set(backgroundOption?.skills ?? []);
-  const classChoices = new Set(classOption?.skill_choices ?? []);
-  const availableSkills =
-    options?.skills.filter(
-      (skill) =>
-        backgroundSkills.has(skill.name) || classChoices.has(skill.name),
-    ) ?? [];
-  const classSkillCount = selectedSkills.filter(
-    (skill) => classChoices.has(skill) && !backgroundSkills.has(skill),
-  ).length;
-  const maxClassSkills = classOption?.skill_count ?? 2;
-
-  function handleBackgroundChange(nextBackground: string) {
-    setBackground(nextBackground);
-    setSelectedSkills([]);
-  }
-
-  function handleClassChange(nextClass: string) {
-    setCharacterClass(nextClass);
-    const nextClassOption = options?.classes.find(
-      (item) => item.name === nextClass,
-    );
-    const allowed = new Set(nextClassOption?.skill_choices ?? []);
-    const maxSkills = nextClassOption?.skill_count ?? 2;
-    setSelectedSkills((previous) => {
-      const retainedBackgroundSkills = previous.filter((skill) =>
-        backgroundSkills.has(skill),
-      );
-      const retainedClassSkills = previous
-        .filter(
-          (skill) => !backgroundSkills.has(skill) && allowed.has(skill),
-        )
-        .slice(0, maxSkills);
-      return [...retainedBackgroundSkills, ...retainedClassSkills];
-    });
-  }
-
-  function toggleSkill(skill: string) {
-    if (backgroundSkills.has(skill)) {
-      return;
-    }
-    setSelectedSkills((previous) => {
-      if (previous.includes(skill)) {
-        return previous.filter((item) => item !== skill);
-      }
-      const currentClassCount = previous.filter(
-        (item) => classChoices.has(item) && !backgroundSkills.has(item),
-      ).length;
-      if (currentClassCount >= maxClassSkills) {
-        return previous;
-      }
-      return [...previous, skill];
-    });
-  }
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setFormError(null);
-
-    if (!name.trim()) {
-      setFormError("Укажите имя персонажа");
-      return;
-    }
-    for (const [, score] of Object.entries(stats)) {
-      if (!Number.isInteger(score) || score < 3 || score > 18) {
-        setFormError("Характеристики должны быть целыми числами от 3 до 18");
-        return;
-      }
-    }
-
-    const payload: CharacterCreatePayload = {
-      name: name.trim(),
-      level: 1,
-      species,
-      character_class: characterClass,
-      background,
-      ...stats,
-      notes: notes.trim() ? notes.trim() : null,
-      data: { skill_proficiencies: selectedSkills },
-    };
-
-    setSubmitting(true);
+  async function handleCreate(payload: CharacterCreatePayload) {
+    setCreating(true);
+    setCreateError(null);
     try {
       const created = await api.createCharacter(payload);
       setCharacters((previous) => [created, ...previous]);
-      setName("");
-      setNotes("");
-    } catch (submitError) {
-      setFormError(errorMessage(submitError));
+      setCreateKey((previous) => previous + 1);
+    } catch (createFailure) {
+      setCreateError(errorMessage(createFailure));
     } finally {
-      setSubmitting(false);
+      setCreating(false);
+    }
+  }
+
+  async function handleUpdate(
+    characterId: string,
+    payload: CharacterUpdatePayload,
+  ) {
+    setSavingEdit(true);
+    setEditError(null);
+    try {
+      const updated = await api.updateCharacter(characterId, payload);
+      setCharacters((previous) =>
+        previous.map((character) =>
+          character.id === characterId ? updated : character,
+        ),
+      );
+      setEditingId(null);
+    } catch (updateFailure) {
+      setEditError(errorMessage(updateFailure));
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function handleAdjustHp(character: Character, delta: number) {
+    const next = Math.min(
+      character.max_hp,
+      Math.max(0, character.current_hp + delta),
+    );
+    if (next === character.current_hp) {
+      return;
+    }
+    try {
+      const updated = await api.updateCharacter(character.id, {
+        current_hp: next,
+      });
+      setCharacters((previous) =>
+        previous.map((item) => (item.id === character.id ? updated : item)),
+      );
+    } catch (hpFailure) {
+      setError(errorMessage(hpFailure));
     }
   }
 
@@ -217,146 +158,16 @@ export function CharacterPage() {
           {!options ? (
             <p className="muted">Не удалось загрузить каталог опций.</p>
           ) : (
-            <form className="stack" onSubmit={handleSubmit}>
-              <label className="field">
-                <span>Имя</span>
-                <input
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  maxLength={100}
-                  placeholder="Например, Ариэль"
-                  required
-                />
-              </label>
-
-              <div className="form-grid">
-                <label className="field">
-                  <span>Вид</span>
-                  <select
-                    value={species}
-                    onChange={(event) => setSpecies(event.target.value)}
-                  >
-                    {options.species.map((item) => (
-                      <option key={item.name} value={item.name}>
-                        {item.name} (скорость {item.speed})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="field">
-                  <span>Класс</span>
-                  <select
-                    value={characterClass}
-                    onChange={(event) => handleClassChange(event.target.value)}
-                  >
-                    {options.classes.map((item) => (
-                      <option key={item.name} value={item.name}>
-                        {item.name} (d{item.hit_die})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="field">
-                  <span>Предыстория</span>
-                  <select
-                    value={background}
-                    onChange={(event) =>
-                      handleBackgroundChange(event.target.value)
-                    }
-                  >
-                    {options.backgrounds.map((item) => (
-                      <option key={item.name} value={item.name}>
-                        {item.name}: {item.skills.join(", ")}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              <fieldset className="fieldset">
-                <legend>Характеристики</legend>
-                <div className="ability-inputs">
-                  {options.abilities.map((ability) => (
-                    <label key={ability.key} className="field compact-field">
-                      <span>{ability.label}</span>
-                      <input
-                        type="number"
-                        min={3}
-                        max={18}
-                        value={stats[ability.key]}
-                        onChange={(event) =>
-                          setStats((previous) => ({
-                            ...previous,
-                            [ability.key]: Number(event.target.value),
-                          }))
-                        }
-                      />
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-
-              <fieldset className="fieldset">
-                <legend>
-                  Навыки
-                  <span className="muted small">
-                    {" "}
-                    классовых: {classSkillCount}/{maxClassSkills}
-                  </span>
-                </legend>
-                <div className="skill-grid">
-                  {availableSkills.map((skill) => {
-                    const isBackground = backgroundSkills.has(skill.name);
-                    const checked = selectedSkills.includes(skill.name);
-                    const disabled =
-                      isBackground ||
-                      (!checked && classSkillCount >= maxClassSkills);
-                    return (
-                      <label
-                        key={skill.name}
-                        className={
-                          isBackground ? "check background" : "check"
-                        }
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          disabled={disabled}
-                          onChange={() => toggleSkill(skill.name)}
-                        />
-                        <span>{skill.name}</span>
-                        <small className="muted">
-                          {isBackground ? "предыстория" : skill.ability}
-                        </small>
-                      </label>
-                    );
-                  })}
-                </div>
-              </fieldset>
-
-              <label className="field">
-                <span>Заметки</span>
-                <textarea
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                  maxLength={10000}
-                  rows={3}
-                  placeholder="Внешность, характер, цели"
-                />
-              </label>
-
-              {formError && <p className="alert error">{formError}</p>}
-
-              <button
-                className="button primary"
-                type="submit"
-                disabled={submitting}
-              >
-                {submitting ? "Создаём..." : "Создать персонажа"}
-              </button>
-            </form>
+            <CharacterForm
+              key={createKey}
+              options={options}
+              initial={emptyDraft(options)}
+              submitLabel="Создать персонажа"
+              pendingLabel="Создаём..."
+              submitting={creating}
+              error={createError}
+              onSubmit={(payload) => void handleCreate(payload)}
+            />
           )}
         </section>
 
@@ -369,13 +180,47 @@ export function CharacterPage() {
               </p>
             ) : (
               <div className="stack">
-                {characters.map((character) => (
-                  <CharacterSheet
-                    key={character.id}
-                    character={character}
-                    onDelete={() => void handleDelete(character.id)}
-                  />
-                ))}
+                {characters.map((character) => {
+                  if (options && editingId === character.id) {
+                    return (
+                      <article key={character.id} className="sheet">
+                        <header className="sheet-header">
+                          <div>
+                            <h4>Редактирование листа</h4>
+                            <p className="muted small">{character.name}</p>
+                          </div>
+                        </header>
+                        <CharacterForm
+                          options={options}
+                          initial={draftFromCharacter(character)}
+                          submitLabel="Сохранить изменения"
+                          pendingLabel="Сохраняем..."
+                          submitting={savingEdit}
+                          error={editError}
+                          onSubmit={(payload) =>
+                            void handleUpdate(character.id, payload)
+                          }
+                          onCancel={() => {
+                            setEditingId(null);
+                            setEditError(null);
+                          }}
+                        />
+                      </article>
+                    );
+                  }
+                  return (
+                    <CharacterSheet
+                      key={character.id}
+                      character={character}
+                      onEdit={() => {
+                        setEditingId(character.id);
+                        setEditError(null);
+                      }}
+                      onDelete={() => void handleDelete(character.id)}
+                      onAdjustHp={(delta) => handleAdjustHp(character, delta)}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>
@@ -387,22 +232,30 @@ export function CharacterPage() {
 
 function CharacterSheet({
   character,
+  onEdit,
   onDelete,
+  onAdjustHp,
 }: {
   character: Character;
+  onEdit: () => void;
   onDelete: () => void;
+  onAdjustHp: (delta: number) => Promise<void>;
 }) {
-  const abilities: AbilityKey[] = [
-    "strength",
-    "dexterity",
-    "constitution",
-    "intelligence",
-    "wisdom",
-    "charisma",
-  ];
+  const [hpPending, setHpPending] = useState(false);
+
   const modifiers = character.data.ability_modifiers;
   const skills = character.data.skill_proficiencies ?? [];
   const skillModifiers = character.data.skill_modifiers ?? {};
+  const savingThrows = character.data.saving_throws;
+
+  async function adjustHp(delta: number) {
+    setHpPending(true);
+    try {
+      await onAdjustHp(delta);
+    } finally {
+      setHpPending(false);
+    }
+  }
 
   return (
     <article className="sheet">
@@ -414,9 +267,18 @@ function CharacterSheet({
             {character.background} · уровень {character.level}
           </p>
         </div>
-        <button className="button ghost danger" type="button" onClick={onDelete}>
-          Удалить
-        </button>
+        <div className="sheet-actions">
+          <button className="button ghost" type="button" onClick={onEdit}>
+            Редактировать
+          </button>
+          <button
+            className="button ghost danger"
+            type="button"
+            onClick={onDelete}
+          >
+            Удалить
+          </button>
+        </div>
       </header>
 
       <div className="stat-row">
@@ -425,6 +287,26 @@ function CharacterSheet({
           <strong>
             {character.current_hp}/{character.max_hp}
           </strong>
+          <div className="hp-controls">
+            <button
+              className="button ghost"
+              type="button"
+              aria-label="Урон"
+              disabled={hpPending || character.current_hp <= 0}
+              onClick={() => void adjustHp(-1)}
+            >
+              −
+            </button>
+            <button
+              className="button ghost"
+              type="button"
+              aria-label="Лечение"
+              disabled={hpPending || character.current_hp >= character.max_hp}
+              onClick={() => void adjustHp(1)}
+            >
+              +
+            </button>
+          </div>
         </div>
         <div className="stat">
           <span className="stat-label">КБ</span>
@@ -432,7 +314,19 @@ function CharacterSheet({
         </div>
         <div className="stat">
           <span className="stat-label">Скорость</span>
-          <strong>{character.speed}</strong>
+          <strong>{character.speed} фт</strong>
+        </div>
+        <div className="stat">
+          <span className="stat-label">Тёмное зрение</span>
+          <strong>
+            {character.data.darkvision
+              ? `${character.data.darkvision} фт`
+              : "—"}
+          </strong>
+        </div>
+        <div className="stat">
+          <span className="stat-label">Инициатива</span>
+          <strong>{signed(character.data.initiative ?? 0)}</strong>
         </div>
         <div className="stat">
           <span className="stat-label">Бонус владения</span>
@@ -445,7 +339,7 @@ function CharacterSheet({
       </div>
 
       <div className="ability-grid">
-        {abilities.map((ability) => (
+        {ABILITIES.map((ability) => (
           <div key={ability} className="ability">
             <span>{ability.slice(0, 3).toUpperCase()}</span>
             <strong>{character[ability]}</strong>
@@ -457,6 +351,18 @@ function CharacterSheet({
             </small>
           </div>
         ))}
+      </div>
+
+      <div>
+        <p className="stat-label">Спасброски</p>
+        <div className="tag-row">
+          {ABILITIES.map((ability) => (
+            <span key={ability} className="tag">
+              {ability.slice(0, 3).toUpperCase()}{" "}
+              {savingThrows ? signed(savingThrows[ability] ?? 0) : "—"}
+            </span>
+          ))}
+        </div>
       </div>
 
       <div>

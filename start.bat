@@ -94,7 +94,7 @@ for /f "usebackq delims=" %%p in (`powershell -NoProfile -Command "(Start-Proces
 if defined FRONTEND_PID >"%FRONTEND_PID_FILE%" echo %FRONTEND_PID%
 :frontend_started
 
-powershell -NoProfile -Command "for ($i = 0; $i -lt 60; $i++) { try { $tcp = New-Object Net.Sockets.TcpClient; $tcp.Connect('127.0.0.1', 5173); $tcp.Close(); exit 0 } catch { Start-Sleep -Milliseconds 500 } }; exit 1"
+powershell -NoProfile -Command "$ok = $false; for ($i = 0; $i -lt 60 -and -not $ok; $i++) { foreach ($h in @('localhost','127.0.0.1','::1')) { try { $tcp = New-Object Net.Sockets.TcpClient; $tcp.Connect($h, 5173); $tcp.Close(); $ok = $true; break } catch { } }; if (-not $ok) { Start-Sleep -Milliseconds 500 } }; if ($ok) { exit 0 } else { exit 1 }"
 if not defined NO_BROWSER start "" http://localhost:5173
 
 echo.

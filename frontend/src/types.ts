@@ -21,6 +21,7 @@ export type AbilityKey =
 export interface SpeciesOption {
   name: string;
   speed: number;
+  darkvision: number;
 }
 
 export interface ClassOption {
@@ -34,11 +35,47 @@ export interface ClassOption {
 export interface BackgroundOption {
   name: string;
   skills: string[];
+  ability_scores: AbilityKey[];
+}
+
+export type BackgroundBonusMode = "two_one" | "one_one_one";
+
+export interface BackgroundBonusModeOption {
+  key: BackgroundBonusMode;
+  label: string;
+  values: number[];
+}
+
+export interface BackgroundAbilityBonus {
+  max_score: number;
+  modes: BackgroundBonusModeOption[];
 }
 
 export interface SkillOption {
   name: string;
   ability: AbilityKey;
+}
+
+export type AbilityScoreMethod =
+  | "manual"
+  | "standard_array"
+  | "point_buy"
+  | "roll_4d6";
+
+export interface AbilityGenerationMethod {
+  key: AbilityScoreMethod;
+  label: string;
+  values?: number[];
+  budget?: number;
+  min?: number;
+  max?: number;
+  costs?: Record<string, number>;
+  dice?: { count: number; sides: number; drop_lowest: number };
+}
+
+export interface AbilityGeneration {
+  score_range: { min: number; max: number };
+  methods: AbilityGenerationMethod[];
 }
 
 export interface CharacterOptions {
@@ -48,10 +85,14 @@ export interface CharacterOptions {
   backgrounds: BackgroundOption[];
   skills: SkillOption[];
   level: { min: number; max: number };
+  background_ability_bonus: BackgroundAbilityBonus;
+  ability_generation: AbilityGeneration;
   limits: { max_message_length: number };
 }
 
 export interface CharacterData {
+  ability_score_method?: AbilityScoreMethod;
+  background_ability_bonus?: Partial<Record<AbilityKey, number>>;
   ability_modifiers?: Record<AbilityKey, number>;
   proficiency_bonus?: number;
   initiative?: number;
@@ -60,6 +101,7 @@ export interface CharacterData {
   skill_modifiers?: Record<string, number>;
   saving_throws?: Record<AbilityKey, number>;
   species_speed?: number;
+  darkvision?: number;
   [key: string]: unknown;
 }
 
@@ -147,12 +189,19 @@ export interface MessageRequest {
   client_message_id: string;
 }
 
+export interface AbilityScoreRoll {
+  method: AbilityScoreMethod;
+  scores: Record<AbilityKey, number>;
+}
+
 export interface CharacterCreatePayload {
   name: string;
   level: number;
   species: string;
   character_class: string;
   background: string;
+  ability_score_method: AbilityScoreMethod;
+  background_ability_bonus: Partial<Record<AbilityKey, number>>;
   strength: number;
   dexterity: number;
   constitution: number;
@@ -161,4 +210,23 @@ export interface CharacterCreatePayload {
   charisma: number;
   notes: string | null;
   data: { skill_proficiencies: string[] };
+}
+
+export interface CharacterUpdatePayload {
+  name?: string;
+  level?: number;
+  species?: string;
+  character_class?: string;
+  background?: string;
+  ability_score_method?: AbilityScoreMethod;
+  background_ability_bonus?: Partial<Record<AbilityKey, number>>;
+  strength?: number;
+  dexterity?: number;
+  constitution?: number;
+  intelligence?: number;
+  wisdom?: number;
+  charisma?: number;
+  current_hp?: number;
+  notes?: string | null;
+  data?: { skill_proficiencies: string[] };
 }

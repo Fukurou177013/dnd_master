@@ -117,6 +117,7 @@ assistant-сообщение создаются одной транзакцие�
 | `GET/POST /characters` | список и создание персонажа |
 | `GET/PATCH/DELETE /characters/{id}` | чтение, изменение, удаление |
 | `GET /rules/character-options` | доступные виды, классы, предыстории, навыки |
+| `POST /rules/ability-scores/roll` | серверный бросок 4d6 без худшего кубика для характеристик |
 | `GET/POST /campaigns` | список и создание личной кампании; `POST` вызывает LLM для вступления |
 | `GET/DELETE /campaigns/{id}` | чтение и удаление |
 | `GET /campaigns/{id}/messages?limit=` | история, `limit` 1..500 (по умолчанию 100) |
@@ -127,13 +128,37 @@ assistant-сообщение создаются одной транзакцие�
 Все ответы с персонажами/кампаниями проверяют владельца. `password_hash` и токены
 сессий наружу не отдаются.
 
+`POST /characters` требует `ability_score_method` (`manual`, `standard_array`,
+`point_buy` или `roll_4d6`) и `background_ability_bonus`; `PATCH /characters/{id}`
+принимает их необязательно, но запрещает `null`. Каталог методов, диапазоны и
+стоимость point buy отдаёт `GET /rules/character-options` в ключе
+`ability_generation`. Метод `roll_4d6` клиент не считает сам:
+`POST /rules/ability-scores/roll` бросает 4d6 без худшего кубика для каждой
+характеристики серверным генератором и возвращает готовые значения.
+
+`background_ability_bonus` — объект «характеристика → 0..2»: предыстория даёт
++2/+1 или +1/+1/+1 только к трём своим характеристикам (каталог —
+`backgrounds[].ability_scores` и `background_ability_bonus.modes`). Присланные
+`strength`…`charisma` — уже итоговые значения после бонуса (не выше 20);
+сервер вычитает бонус и проверяет метод генерации по базовым значениям.
+Клиент присылает только выбранные значения, все правила метода и бонуса
+проверяет сервер.
+
 ## 6. Данные
 
 - `users` — email в нижнем регистре, Argon2-хеш пароля.
 - `sessions` — хранится только хеш токена, срок жизни и метаданные.
 - `characters` — характеристики хранятся в диапазоне 1..30, но приложение валидирует
-  3..18; уровень 1..20, вычисляемые HP/AC/speed проверяются сервером; произвольные
-  данные — в `data` (JSONB).
+  базовые значения 3..18 (для `manual` и `roll_4d6`) или правила выбранного метода,
+  а итог с бонусом предыстории — не выше 20; уровень 1..20, вычисляемые
+  HP/AC/speed проверяются сервером; метод генерации (`data.ability_score_method`),
+  бонус предыстории (`data.background_ability_bonus`) и
+  производные значения (`ability_modifiers`, `saving_throws`, `initiative`,
+  `passive_perception`, `species_speed`, `darkvision`, `skill_proficiencies`,
+  `skill_modifiers`) — в `data` (JSONB).
+  Отдельной колонки метода нет; строки без `data.ability_score_method` считаются
+  legacy и не пересчитывают характеристики при `PATCH` без явного метода.
+  Строки без `data.background_ability_bonus` считаются legacy с нулевым бонусом.
 - `campaigns` — владелец + принадлежащий ему персонаж, необязательное пожелание `premise`
   (тон/жанр/сеттинг) и первая вступительная сцена в журнале.
 - `campaign_memories` — структурированное резюме: `facts`, `goals`, `npcs`, `locations`,
@@ -153,6 +178,10 @@ assistant-сообщение создаются одной транзакцие�
    механике опираются на найденные фрагменты SRD; при их отсутствии модель описывает
    атмосферу и честно не выдаёт выдуманное правило за канон.
 3. Все выборы персонажа валидируются по серверному каталогу; клиенту не доверяем.
+   Состав `standard_array`, диапазон и бюджет `point_buy` проверяются только на сервере,
+   а `roll_4d6` генерируется серверным броском `POST /rules/ability-scores/roll`.
+   Бонус предыстории проверяется по её трём характеристикам и одной из форм
+   +2/+1 или +1/+1/+1; итоговое значение не выше 20.
 4. Любой доступ к персонажу/кампании фильтруется по `user_id`.
 5. Повтор запроса с тем же `client_message_id` не создаёт второй обмен и не бросает кубик
    повторно.
@@ -228,6 +257,7 @@ assistant-сообщение создаются одной транзакцие�
 | Кампании, сообщения, память | `backend/app/services/campaigns.py`, `backend/app/api/v1/campaigns.py` |
 | Схема таблиц | `backend/app/models/` |
 | Броски и правила персонажа | `backend/app/services/dice.py`, `backend/app/rules/character_options.py` |
+| Создание и ведение листа персонажа | `backend/app/rules/character_options.py`, `frontend/src/CharacterPage.tsx`, `frontend/src/CharacterForm.tsx` |
 | Импорт SRD | `backend/app/scripts/import_srd.py` |
 | Cookie-сессии и доступ | `backend/app/core/security.py`, `backend/app/api/deps.py` |
 | Frontend-запросы и типы | `frontend/src/api.ts`, `frontend/src/types.ts` |
